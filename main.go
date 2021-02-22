@@ -38,17 +38,14 @@ func main() {
 
 	now := time.Now().UTC()
 
-	downloadUrl  := "http://i.imgur.com/z4d4kWk.jpg"
+	downloadUrl  := "https://www.youtube.com/watch?v=EwTZ2xpQwpA"
 	log.Println("Url:", downloadUrl)
 	fileSize, err := getSizeAndCheckRangeSupport(downloadUrl)
-	if fileSize == 0 {
-		handleError(err)
-	}
 
 	log.Printf("Size: %d bytes\n", fileSize)
 	fName := getFileName(downloadUrl)
 	if fName == "" {
-		fName = "default.null"
+		fName = "default"
 	}
 	var filePath = fmt.Sprintf("./downloads/%s", fName)
 
@@ -210,10 +207,10 @@ func getSizeAndCheckRangeSupport(url string) (size int64, err error) {
 		err = errors.New("Exists header 'Accept-Ranges', but value is not 'bytes'. ")
 	}
 	if _, ok := header["Content-Length"];!ok {
-		err = errors.New("Header 'Content-Length' is empty. Download is nothing ")
-		return
+		err = errors.New("Header 'Content-Length' is empty. ")
+	} else {
+		size, err = strconv.ParseInt(header["Content-Length"][0], 10, 64)
 	}
-	size, err = strconv.ParseInt(header["Content-Length"][0], 10, 64)
 	return
 }
 
