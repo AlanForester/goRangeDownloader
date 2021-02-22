@@ -38,7 +38,7 @@ func main() {
 
 	now := time.Now().UTC()
 
-	downloadUrl  := "https://ivbb.ru/"
+	downloadUrl  := "http://i.imgur.com/z4d4kWk.jpg"
 	log.Println("Url:", downloadUrl)
 	fileSize, err := getSizeAndCheckRangeSupport(downloadUrl)
 	if fileSize == 0 {
