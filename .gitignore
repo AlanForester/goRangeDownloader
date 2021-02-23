@@ -1,3 +1,5 @@
 .idea
 .DS_STORE
 vendor
+/downloads/*
+!/downloads/.gitkeep
