@@ -13,6 +13,7 @@ import (
 func main() {
 
 	var workerCount = flag.Int64("c", 5, "goroutines count")
+	var maxRepeats = flag.Int64("r", 1, "max repeats on net errors")
 	flag.Parse()
 
 	now := time.Now().UTC()
@@ -30,10 +31,9 @@ func main() {
 	var filePath = fmt.Sprintf("./downloads/%s", fName)
 
 	if err == nil {
-		HandleError(downloader.AsyncDownload(filePath, downloadUrl, fileSize, workerCount))
+		HandleError(downloader.AsyncDownload(filePath, downloadUrl, fileSize, workerCount, maxRepeats))
 	} else {
-		// TODO: check on write bytes with repeat download as in AsyncDownload
-		HandleError(downloader.SyncDownload(filePath, downloadUrl))
+		log.Fatalf("File is not support range header")
 	}
 
 	log.Println("Elapsed time:", time.Since(now))

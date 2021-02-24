@@ -24,16 +24,25 @@ type worker struct {
 	writeBytes *uint64
 }
 
-func (w *worker) writeSlice(sliceNum int64, start int64, end int64, partialSize int64) {
+func (w *worker) writeSlice(sliceNum int64, start int64, end int64, repeat int64, maxRepeats int64) {
 	var written int64
 	body, size, err := w.getSliceData(start, end)
 	if err != nil {
-		log.Fatalf("Slice %d request error: %s\n", sliceNum, err.Error())
+		log.Printf("Slice %d request error: %s\n", sliceNum, err.Error())
+		if maxRepeats > repeat {
+			repeat += 1
+			w.writeSlice(sliceNum, start, end, repeat, maxRepeats)
+			return
+		}
 	}
+
 	defer body.Close()
 	defer w.SyncWG.Done()
 
-	buf := make([]byte, partialSize)
+	// Write with 4096 bytes block size
+	bs := int64(4096)
+	log.Printf("Goroutine №%d: Set write block size %v ", sliceNum, bs)
+	buf := make([]byte, bs)
 	for {
 		nr, er := body.Read(buf)
 		if nr > 0 {
@@ -53,7 +62,7 @@ func (w *worker) writeSlice(sliceNum int64, start int64, end int64, partialSize 
 			atomic.AddUint32(w.writeCount, 1)
 			atomic.AddUint64(w.writeBytes, uint64(nw))
 
-			log.Printf("Goroutine №%d: writing %d bytes at %v byte of file", sliceNum, start, end)
+			log.Printf("Goroutine №%d: writing %v-%v bytes of file", sliceNum, start-bs, start)
 
 		}
 		if er != nil {
@@ -66,7 +75,6 @@ func (w *worker) writeSlice(sliceNum int64, start int64, end int64, partialSize 
 			}
 			HandleError(errors.New(fmt.Sprintf("Slice %d occured error: %s\n", sliceNum, er.Error())))
 		}
-
 	}
 }
 

@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 )
 
-func AsyncDownload(filepath string, url string, size int64, worksCount *int64) (err error) {
+func AsyncDownload(filepath string, url string, size int64, worksCount *int64, maxRepeats *int64) (err error) {
 	log.Printf("Save to: %s\n", filepath)
 	f, err := os.OpenFile(filepath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
@@ -29,9 +29,7 @@ func AsyncDownload(filepath string, url string, size int64, worksCount *int64) (
 
 	var start, end int64
 	var partialSize = size / *worksCount
-
 	log.Println("Part size on goroutine:", partialSize)
-
 	for num := int64(0); num < worker.Count; num++ {
 		start = num * partialSize
 		end += partialSize
@@ -41,10 +39,15 @@ func AsyncDownload(filepath string, url string, size int64, worksCount *int64) (
 			start += 1
 		}
 
+		// If surplus exists and division by worksCount != 0
+		if num == (worker.Count - 1) {
+			end += size % *worksCount
+		}
+
 		log.Printf("Goroutine №%d: Start download from '%d' to '%d' bytes of file", num, start, end)
 
 		worker.SyncWG.Add(1)
-		go worker.writeSlice(num, start, end, partialSize)
+		go worker.writeSlice(num, start, end, 0, *maxRepeats)
 		start = end
 	}
 
@@ -59,7 +62,7 @@ func AsyncDownload(filepath string, url string, size int64, worksCount *int64) (
 	if uint64(size) != writesByte {
 		log.Printf("Error: %v", errutil.FileSizeIsNotEqualWrittenBytesError.Error())
 		if cmd.DownloadAgainQuestion() {
-			return AsyncDownload(filepath, url, size, worksCount)
+			return AsyncDownload(filepath, url, size, worksCount, maxRepeats)
 		}
 	}
 
