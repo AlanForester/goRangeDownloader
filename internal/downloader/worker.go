@@ -15,25 +15,41 @@ import (
 )
 
 type worker struct {
+	sync.Mutex
+
 	Url       string
 	File      *os.File
 	Count     int64
 	SyncWG    sync.WaitGroup
 	TotalSize int64
 
+	WriteChan chan Chunk
+
 	writeCount *uint32
 	writeBytes *uint64
 }
 
-func (w *worker) writeSlice(sliceNum int64, start int64, end int64, repeat int64, maxRepeats int64) {
-	var written int64
+func (w *worker) writeChunk(chunk Chunk) {
+
+	nw, err := w.File.WriteAt(chunk.Data, chunk.Start)
+
+	if err != nil {
+		log.Fatalf("Slice %d occured error: %s.\n", chunk.FlowNum, err.Error())
+	}
+
+	atomic.AddUint64(w.writeBytes, uint64(nw))
+
+	log.Printf("Goroutine №%d: writing %v-%v bytes of file", chunk.FlowNum, chunk.Start, chunk.End)
+}
+
+func (w *worker) downloadSlice(sliceNum int64, start int64, end int64, repeat int64, maxRepeats int64) {
 	body, size, err := w.getSliceData(start, end)
 	if err != nil {
 		log.Printf("Slice %d request error: %s\n", sliceNum, err.Error())
 		if maxRepeats > repeat {
 			repeat += 1
 			time.AfterFunc(5*time.Second, func() {
-				w.writeSlice(sliceNum, start, end, repeat, maxRepeats)
+				w.downloadSlice(sliceNum, start, end, repeat, maxRepeats)
 			})
 			return
 		} else {
@@ -51,31 +67,16 @@ func (w *worker) writeSlice(sliceNum int64, start int64, end int64, repeat int64
 	for {
 		nr, er := body.Read(buf)
 		if nr > 0 {
-			nw, err := w.File.WriteAt(buf[0:nr], start)
-			if err != nil {
-				log.Fatalf("Slice %d occured error: %s.\n", sliceNum, err.Error())
-			}
-			if nr != nw {
-				log.Fatalf("Slice %d occured error of short writing.\n", sliceNum)
-			}
+			start = int64(nr) + start
 
-			start = int64(nw) + start
-			if nw > 0 {
-				written += int64(nw)
-			}
+			log.Printf("Goroutine №%d: send %v-%v bytes on write", sliceNum, start-bs, start)
+			w.WriteChan <- Chunk{Start: start - bs, End: start, Data: buf[0:nr], Size: int(size), FlowNum: sliceNum}
 
 			atomic.AddUint32(w.writeCount, 1)
-			atomic.AddUint64(w.writeBytes, uint64(nw))
-
-			log.Printf("Goroutine №%d: writing %v-%v bytes of file", sliceNum, start-bs, start)
 
 		}
 		if er != nil {
 			if er.Error() == "EOF" {
-				if size == written {
-				} else {
-					HandleError(errors.New(fmt.Sprintf("Slice write %d unfinished.\n", sliceNum)))
-				}
 				break
 			}
 			HandleError(errors.New(fmt.Sprintf("Slice %d occured error: %s\n", sliceNum, er.Error())))

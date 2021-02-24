@@ -22,6 +22,7 @@ func AsyncDownload(filepath string, url string, size int64, worksCount *int64, m
 		File:      f,
 		Count:     *worksCount,
 		TotalSize: size,
+		WriteChan: make(chan Chunk, size),
 
 		writeCount: &wc,
 		writeBytes: &wb,
@@ -47,8 +48,19 @@ func AsyncDownload(filepath string, url string, size int64, worksCount *int64, m
 		log.Printf("Goroutine №%d: Start download from '%d' to '%d' bytes of file", num, start, end)
 
 		worker.SyncWG.Add(1)
-		go worker.writeSlice(num, start, end, 0, *maxRepeats)
+		go worker.downloadSlice(num, start, end, 0, *maxRepeats)
 		start = end
+	}
+
+	for ch := range worker.WriteChan {
+		worker.writeChunk(ch)
+
+		writesByte := atomic.LoadUint64(worker.writeBytes)
+
+		if writesByte == uint64(size) {
+			close(worker.WriteChan)
+			break
+		}
 	}
 
 	worker.SyncWG.Wait()
