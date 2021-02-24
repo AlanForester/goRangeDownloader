@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 )
 
 type worker struct {
@@ -18,9 +19,12 @@ type worker struct {
 	Count     int64
 	SyncWG    sync.WaitGroup
 	TotalSize int64
+
+	writeCount *uint32
+	writeBytes *uint64
 }
 
-func (w *worker) writeSlice(sliceNum int64, start int64, end int64) {
+func (w *worker) writeSlice(sliceNum int64, start int64, end int64, partialSize int64) {
 	var written int64
 	body, size, err := w.getSliceData(start, end)
 	if err != nil {
@@ -29,8 +33,7 @@ func (w *worker) writeSlice(sliceNum int64, start int64, end int64) {
 	defer body.Close()
 	defer w.SyncWG.Done()
 
-	bufSize := int64(4 * 1024)
-	buf := make([]byte, bufSize)
+	buf := make([]byte, partialSize)
 	for {
 		nr, er := body.Read(buf)
 		if nr > 0 {
@@ -47,7 +50,10 @@ func (w *worker) writeSlice(sliceNum int64, start int64, end int64) {
 				written += int64(nw)
 			}
 
-			log.Printf("Goroutine %d: writing %d bytes at %v byte of file", sliceNum+1, bufSize, start-bufSize)
+			atomic.AddUint32(w.writeCount, 1)
+			atomic.AddUint64(w.writeBytes, uint64(nw))
+
+			log.Printf("Goroutine №%d: writing %d bytes at %v byte of file", sliceNum, start, end)
 
 		}
 		if er != nil {
@@ -60,6 +66,7 @@ func (w *worker) writeSlice(sliceNum int64, start int64, end int64) {
 			}
 			HandleError(errors.New(fmt.Sprintf("Slice %d occured error: %s\n", sliceNum, er.Error())))
 		}
+
 	}
 }
 

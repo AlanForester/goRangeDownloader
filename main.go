@@ -32,6 +32,7 @@ func main() {
 	if err == nil {
 		HandleError(downloader.AsyncDownload(filePath, downloadUrl, fileSize, workerCount))
 	} else {
+		// TODO: check on write bytes with repeat download as in AsyncDownload
 		HandleError(downloader.SyncDownload(filePath, downloadUrl))
 	}
 
