@@ -7,6 +7,7 @@ import (
 )
 
 var FileSizeIsNotEqualWrittenBytesError = errors.New("File size is not equal written bytes ")
+var OneOrManyChunksDontLoaded = errors.New("One or many chunks dont loaded ")
 
 func HandleError(err error) {
 	if err != nil {

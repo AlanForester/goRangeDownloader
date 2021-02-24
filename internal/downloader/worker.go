@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type worker struct {
@@ -31,8 +32,12 @@ func (w *worker) writeSlice(sliceNum int64, start int64, end int64, repeat int64
 		log.Printf("Slice %d request error: %s\n", sliceNum, err.Error())
 		if maxRepeats > repeat {
 			repeat += 1
-			w.writeSlice(sliceNum, start, end, repeat, maxRepeats)
+			time.AfterFunc(5*time.Second, func() {
+				w.writeSlice(sliceNum, start, end, repeat, maxRepeats)
+			})
 			return
+		} else {
+			log.Fatalf("Error: %v\n", OneOrManyChunksDontLoaded)
 		}
 	}
 
